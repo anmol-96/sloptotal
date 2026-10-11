@@ -10,6 +10,10 @@ from fastapi.testclient import TestClient
 
 from app.database import init_database
 from app.main import app
+from starlette.requests import Request
+from types import SimpleNamespace
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
 
 
 @pytest.fixture(scope="module")
@@ -131,3 +135,81 @@ def test_a_report_says_which_language_it_scored(client):
     dumped = report.model_dump()
     assert dumped["language"] == "es"
     assert dumped["language_support"] in {"supported", "experimental", "unsupported"}
+
+
+TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "web" / "templates"
+
+
+def make_test_request(report_id):
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "path": f"/report/{report_id}",
+            "raw_path": f"/report/{report_id}".encode(),
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+
+def test_report_shows_detected_language():
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+    template = env.get_template("report.html")
+
+    report = SimpleNamespace(
+        id="test-123",
+        language="en",
+        word_count=10,
+        source_type="text",
+        source="",
+        engines_total=3,
+        created_at=SimpleNamespace(isoformat=lambda: "2026-10-11T12:00:00"),
+        text_excerpt="This is a test.",
+    )
+    request = make_test_request("test-123")
+
+    html = template.render(
+        request=request,
+        report=report,
+        bands=[],
+        band_info=[],
+        engines=[],
+        notes=[],
+    )
+
+    assert "Language:" in html
+    assert "<b>en</b>" in html
+
+
+def test_report_hides_unknown_language():
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+    template = env.get_template("report.html")
+
+    report = SimpleNamespace(
+        id="test-456",
+        language="other",
+        word_count=10,
+        source_type="text",
+        source="",
+        engines_total=3,
+        created_at=SimpleNamespace(isoformat=lambda: "2026-10-11T12:00:00"),
+        text_excerpt="This is a test.",
+    )
+    request = make_test_request("test-456")
+
+    html = template.render(
+        request=request,
+        report=report,
+        bands=[],
+        band_info=[],
+        engines=[],
+        notes=[],
+    )
+
+    assert "Language:" not in html
