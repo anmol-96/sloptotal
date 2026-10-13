@@ -33,7 +33,17 @@ def extract_document_text(filename: str, data: bytes) -> str:
             doc = Document(io.BytesIO(data))
         except Exception as exc:
             raise ValueError("Could not read that Word document.") from exc
-        text = "\n\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
+        parts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        for table in doc.tables:
+            seen_cells = set()
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell._tc not in seen_cells:
+                        seen_cells.add(cell._tc)
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            parts.append(cell_text)
+        text = "\n\n".join(parts)
     elif name.endswith((".txt", ".md")):
         text = data.decode("utf-8", errors="replace")
     else:

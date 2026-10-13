@@ -43,9 +43,54 @@ def _pdf(text: str) -> bytes:
     return out.getvalue()
 
 
+def _docx_with_table(
+    table_data: list[list[str]], paragraphs: list[str] | None = None
+) -> bytes:
+    doc = Document()
+    if paragraphs:
+        for p in paragraphs:
+            doc.add_paragraph(p)
+    if table_data:
+        table = doc.add_table(rows=len(table_data), cols=len(table_data[0]))
+        for r_idx, row in enumerate(table_data):
+            for c_idx, cell_value in enumerate(row):
+                table.rows[r_idx].cells[c_idx].text = cell_value
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 def test_docx():
     text = extract_document_text("essay.DOCX", _docx(AI_TEXT))
     assert "multifaceted tapestry" in text
+
+
+def test_docx_text_in_table_only():
+    data = [
+        ["Project Title", "SlopTotal AI Detection Engine"],
+        [
+            "Candidate Background",
+            "Senior Machine Learning Engineer with 8 years of experience building NLP systems.",
+        ],
+    ]
+    raw = _docx_with_table(data)
+    extracted = extract_document_text("resume.docx", raw)
+    assert "SlopTotal AI Detection Engine" in extracted
+    assert "Senior Machine Learning Engineer" in extracted
+
+
+def test_docx_paragraphs_then_tables_joined_by_blank_lines():
+    paragraphs = ["First paragraph introduction.", "Second paragraph description."]
+    table_data = [["Cell One", "Cell Two"]]
+    raw = _docx_with_table(table_data, paragraphs=paragraphs)
+    extracted = extract_document_text("mixed.docx", raw)
+    expected = (
+        "First paragraph introduction.\n\n"
+        "Second paragraph description.\n\n"
+        "Cell One\n\n"
+        "Cell Two"
+    )
+    assert extracted == expected
 
 
 def test_pdf():

@@ -175,10 +175,12 @@ def _extract_text_from_html(html: str) -> str:
         )
 
     if not text or len(text.strip()) < MIN_TEXT_LENGTH:
-        raise ValueError("Could not extract meaningful text from the URL.")
+        raise ValueError(
+            "This page has almost no text in its HTML. It may load its content with JavaScript. "
+            "Copy the text from your browser and paste it instead."
+        )
 
     text = text.strip()
-
     # Cap at MAX_WORDS to avoid wasting compute on huge articles
     words = text.split()
     if len(words) > MAX_WORDS:

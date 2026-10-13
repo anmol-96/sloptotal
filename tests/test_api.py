@@ -195,6 +195,15 @@ def test_api_paths_have_tags(client):
                     assert method_data.get("tags"), f"{path} {method} missing tags"
 
 
+def test_upload_status_is_accessible_live_region(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    html = r.text
+    assert 'id="upload-status"' in html
+    assert 'aria-live="polite"' in html
+    assert 'role="status"' in html
+
+
 def test_report_shows_detected_language(client):
     report_id = uuid4().hex[:12]
 
