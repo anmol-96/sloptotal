@@ -42,6 +42,7 @@ from app.scraper import (
     extract_text_with_metadata,
     fetch_page,
 )
+from app.config import MIN_TEXT_LENGTH
 from app.language import count_words
 from app.site_fingerprints import detect_builders
 from app.documents import MAX_UPLOAD_BYTES, extract_document_text
@@ -52,7 +53,11 @@ log = logging.getLogger("sloptotal.routes.api")
 router = APIRouter(prefix="/api")
 
 
-@router.post("/quick-score")
+@router.post(
+    "/quick-score",
+    tags=["Analysis"],
+    summary="Quick AI detection (4 best ML classifiers)",
+)
 async def api_quick_score(request: Request, req: AnalyzeRequest):
     """Fast analysis using only 4 best ML classifiers."""
     queue_manager = request.app.state.queue_manager
@@ -61,9 +66,10 @@ async def api_quick_score(request: Request, req: AnalyzeRequest):
             content = await extract_text_from_url(req.url.strip())
         elif req.text:
             content = req.text.strip()
-            if len(content) < 50:
+            if len(content) < MIN_TEXT_LENGTH:
                 return JSONResponse(
-                    {"error": "Text must be at least 50 characters."}, status_code=400
+                    {"error": f"Text must be at least {MIN_TEXT_LENGTH} characters."},
+                    status_code=400,
                 )
         else:
             return JSONResponse(
@@ -103,7 +109,9 @@ async def api_quick_score(request: Request, req: AnalyzeRequest):
         return JSONResponse({"error": "Analysis failed"}, status_code=500)
 
 
-@router.post("/paragraph-score")
+@router.post(
+    "/paragraph-score", tags=["Analysis"], summary="Per-paragraph AI detection"
+)
 async def api_paragraph_score(req: AnalyzeRequest):
     """Per-paragraph AI detection — splits text into paragraphs and scores each."""
     try:
@@ -111,9 +119,10 @@ async def api_paragraph_score(req: AnalyzeRequest):
             content = await extract_text_from_url(req.url.strip())
         elif req.text:
             content = req.text.strip()
-            if len(content) < 50:
+            if len(content) < MIN_TEXT_LENGTH:
                 return JSONResponse(
-                    {"error": "Text must be at least 50 characters."}, status_code=400
+                    {"error": f"Text must be at least {MIN_TEXT_LENGTH} characters."},
+                    status_code=400,
                 )
         else:
             return JSONResponse(
@@ -129,7 +138,11 @@ async def api_paragraph_score(req: AnalyzeRequest):
         return JSONResponse({"error": "Analysis failed"}, status_code=500)
 
 
-@router.post("/scan/snippets")
+@router.post(
+    "/scan/snippets",
+    tags=["Extension"],
+    summary="Batch scan of short snippets (search results)",
+)
 async def api_scan_snippets(request: Request, req: SnippetBatchRequest):
     """Ultra-fast batch scan for Google search snippets."""
     queue_manager = request.app.state.queue_manager
@@ -174,7 +187,11 @@ async def api_scan_snippets(request: Request, req: SnippetBatchRequest):
         return JSONResponse({"error": "Scan failed"}, status_code=500)
 
 
-@router.post("/scan/urls")
+@router.post(
+    "/scan/urls",
+    tags=["Extension"],
+    summary="Batch URL scanning with page type classification",
+)
 async def api_scan_urls(req: UrlScanRequest):
     """Fetch URL content, classify page type, run Fakespot + structural, blend.
 
@@ -208,7 +225,7 @@ async def api_scan_urls(req: UrlScanRequest):
                 "fetch_ms": round(fetch_ms, 1),
             }
 
-        if page.char_count < 50:
+        if page.char_count < MIN_TEXT_LENGTH:
             return {
                 "type": "error",
                 "id": item.id,
@@ -374,7 +391,11 @@ async def api_scan_urls(req: UrlScanRequest):
     }
 
 
-@router.post("/quick-score/batch")
+@router.post(
+    "/quick-score/batch",
+    tags=["Extension"],
+    summary="Batch quick analysis for multiple URLs",
+)
 async def api_quick_score_batch(req: BatchUrlRequest):
     """Batch quick analysis for multiple URLs."""
     import time
@@ -421,7 +442,7 @@ async def api_quick_score_batch(req: BatchUrlRequest):
     }
 
 
-@router.post("/analyze")
+@router.post("/analyze", tags=["Analysis"], summary="Full analysis with all engines")
 async def api_analyze(request: Request, req: AnalyzeRequest):
     """JSON API endpoint for programmatic access."""
     queue_manager = request.app.state.queue_manager
@@ -430,9 +451,10 @@ async def api_analyze(request: Request, req: AnalyzeRequest):
             content = await extract_text_from_url(req.url.strip())
             source_type, source = "url", req.url.strip()
         elif req.text:
-            if len(req.text.strip()) < 50:
+            if len(req.text.strip()) < MIN_TEXT_LENGTH:
                 return JSONResponse(
-                    {"error": "Text must be at least 50 characters."}, status_code=400
+                    {"error": f"Text must be at least {MIN_TEXT_LENGTH} characters."},
+                    status_code=400,
                 )
             content = req.text.strip()
             source_type, source = "text", content[:100]
@@ -496,7 +518,11 @@ async def api_analyze(request: Request, req: AnalyzeRequest):
         return JSONResponse({"error": "Analysis failed"}, status_code=500)
 
 
-@router.post("/extract")
+@router.post(
+    "/extract",
+    tags=["Analysis"],
+    summary="Extract text from uploaded documents (PDF, DOCX, TXT, MD)",
+)
 # FastAPI inspects File metadata in the parameter default.
 async def api_extract(file: UploadFile = File(...)):  # noqa: B008
     """Extract text from an uploaded .pdf, .docx, .txt or .md file.
@@ -512,7 +538,11 @@ async def api_extract(file: UploadFile = File(...)):  # noqa: B008
     return {"text": text, "filename": file.filename, "word_count": count_words(text)}
 
 
-@router.post("/scan/site")
+@router.post(
+    "/scan/site",
+    tags=["Site check"],
+    summary="Detect sites built with AI app builders, plus a quick score of the page copy",
+)
 async def api_scan_site(req: SiteScanRequest):
     """Was this website built with an AI app builder, and does its copy read as AI?
 
@@ -548,7 +578,7 @@ async def api_scan_site(req: SiteScanRequest):
     return {"url": url, "final_url": final_url, "site": site, "text": text_result}
 
 
-@router.get("/recent")
+@router.get("/recent", tags=["Reports"], summary="Recent anonymous activity")
 async def api_recent():
     """Return anonymous activity for the homepage ticker.
 
@@ -582,7 +612,9 @@ async def api_recent():
         return []
 
 
-@router.get("/report/{report_id}")
+@router.get(
+    "/report/{report_id}", tags=["Reports"], summary="Get analysis report by ID"
+)
 async def api_report(report_id: str):
     if not report_id or len(report_id) > 12 or not report_id.isalnum():
         raise HTTPException(status_code=400, detail="Invalid report ID")
@@ -593,7 +625,11 @@ async def api_report(report_id: str):
     return report.model_dump()
 
 
-@router.post("/report/{report_id}/feedback")
+@router.post(
+    "/report/{report_id}/feedback",
+    tags=["Reports"],
+    summary="Submit feedback for a report",
+)
 async def api_report_feedback(report_id: str, req: FeedbackRequest):
     if not report_id or len(report_id) > 12 or not report_id.isalnum():
         raise HTTPException(status_code=400, detail="Invalid report ID")
@@ -608,7 +644,7 @@ async def api_report_feedback(report_id: str, req: FeedbackRequest):
     return {"status": "saved"}
 
 
-@router.get("/scan/stats")
+@router.get("/scan/stats", tags=["Reports"], summary="Scan statistics and recent scans")
 async def api_scan_stats():
     """Return scan log statistics and recent scans for analysis."""
     try:
@@ -618,7 +654,7 @@ async def api_scan_stats():
         return JSONResponse({"error": "Failed to get stats"}, status_code=500)
 
 
-@router.get("/engines")
+@router.get("/engines", tags=["Engines"], summary="List detection engines")
 async def api_engines():
     """Return metadata for all detection engines."""
     return get_engine_list_rich()

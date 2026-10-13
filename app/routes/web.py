@@ -131,7 +131,11 @@ async def analyze_form(
     return RedirectResponse(url=f"/report/{report_id}", status_code=303)
 
 
-@router.post("/api/web/analyze")
+@router.post(
+    "/api/web/analyze",
+    tags=["Web UI"],
+    summary="Analyze text from web UI form",
+)
 async def api_web_analyze(request: Request, req: WebAnalyzeRequest):
     """Queue-aware endpoint for the web form.
 
@@ -251,7 +255,11 @@ async def report_page(request: Request, report_id: str):
     )
 
 
-@router.get("/api/stream/{report_id}")
+@router.get(
+    "/api/stream/{report_id}",
+    tags=["Web UI"],
+    summary="Stream analysis progress via SSE",
+)
 async def sse_stream(report_id: str):
     """Server-Sent Events endpoint — streams engine results as they complete."""
     if not report_id or len(report_id) > 12 or not report_id.isalnum():

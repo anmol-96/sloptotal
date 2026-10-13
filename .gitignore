@@ -45,4 +45,3 @@ models/
 # OS
 .DS_Store
 Thumbs.db
-.venv311/
